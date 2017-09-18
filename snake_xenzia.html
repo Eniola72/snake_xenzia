@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Snake Xenzia</title>
+
+		<style type="text/css">
+			#game {
+				display: block; 
+				background-color: #fff; 
+				border: 2px solid #666; 
+				margin: auto; 
+			}
+		</style>
+	</head>
+
+	<body>
+		<canvas id="game"></canvas>
+
+		<script type="text/javascript">
+			var game = document.getElementById("game"); 
+			var innerWidth = window.innerWidth; 
+			var innerHeight = window.innerHeight; 
+			var width = innerWidth - 40; 
+			var height = innerHeight - 40; 
+			game.width = width; 
+			game.height = height; 
+
+			var ctx = game.getContext("2d"); //context for drawing with JavaScript
+
+
+			var framesPerSec = 30, gameSpeed = 1, loop = null; 
+
+			var snake = new Snake(); //creates the snake
+			var food = new Food(); //creates the food
+			var bonusFood = null; //bonus food 
+
+			if (typeof(Storage) !== "undefined") {
+				if (!localStorage.getItem("highScore")) {
+						localStorage.setItem("highScore", 0); 
+				}
+			}
+
+			function update() { //updates properties of game elements
+				snake.headPos = newPositionVector(snake.headPos, snake.headVector); 
+
+				if (snake.turns.length && snake.turnPos[0].x == snake.tailPos.x && snake.turnPos[0].y == snake.tailPos.y) {
+					snake.tailVector = toVelocityVector(snake.turns[0]); 
+					deleteFromArray(snake.turns, 0); 
+					deleteFromArray(snake.turnPos, 0); 
+				}
+
+				snake.tailPos = newPositionVector(snake.tailPos, snake.tailVector); 
+
+				if (snake.turns.length && snake.turnPos[0].x == snake.tailPos.x && snake.turnPos[0].y == snake.tailPos.y) {
+					snake.tailVector = toVelocityVector(snake.turns[0]); 
+					deleteFromArray(snake.turns, 0); 
+					deleteFromArray(snake.turnPos, 0); 
+				}
+			}
+
+			function render() { //draws all game elements
+				ctx.clearRect(0,0,width,height); 
+				ctx.fillStyle = "#4f4"; 
+				ctx.fillRect(0,0,width,height); 
+
+				ctx.beginPath(); 
+                ctx.arc(snake.headPos.x, snake.headPos.y, 7, 0, 2*Math.PI);
+                ctx.fillStyle = snake.color; 
+                ctx.fill(); 
+
+				ctx.strokeStyle = snake.color; 
+				ctx.lineWidth = snake.thickness; 
+				ctx.lineCap = "round"; 
+
+				ctx.beginPath(); 
+				ctx.moveTo(snake.headPos.x, snake.headPos.y); 
+
+				if (snake.turnPos.length) {
+					for (var i = snake.turnPos.length - 1; i >= 0; i--) ctx.lineTo(snake.turnPos[i].x, snake.turnPos[i].y); 
+					ctx.lineTo(snake.tailPos.x, snake.tailPos.y); 
+				}
+
+				else ctx.lineTo(snake.tailPos.x, snake.tailPos.y); 
+
+				ctx.stroke(); 
+
+				ctx.fillStyle = food.color; 
+				ctx.fillRect(food.pos.x, food.pos.y, 10, 10); 
+
+				if (bonusFood) {
+					ctx.beginPath(); 
+	                ctx.arc(bonusFood.pos.x, bonusFood.pos.y, 20, 0, 2*Math.PI);
+	                ctx.fillStyle = bonusFood.color; 
+	                ctx.fill(); 
+				}
+
+				ctx.fillStyle = "#000"; 
+				ctx.font = "20px Arial";
+				ctx.fillText("Score: " + snake.score,10,30); 
+				if (localStorage.getItem("highScore")) ctx.fillText("High score: " + localStorage.getItem("highScore"),10,70); 
+			}
+
+			function Snake() { //snake constructor
+				this.color = "#a00"; 
+				this.thickness = 10; 
+				this.length = 3; 
+				this.unitLength = 40; 
+				this.headPos = new positionVector(140,height/2); 
+				this.tailPos = new positionVector(20,height/2); 
+				this.headVector = new velocityVector(1,0); 
+				this.tailVector = new velocityVector(1,0); 
+				this.turns = []; 
+				this.turnPos = []; 
+				this.score = 0; 
+				this.counter = 0; 
+
+				this.eatFood = function() {
+					this.length++; 
+					this.score++; 
+					this.counter++; 
+					this.tailPos = new positionVector(this.tailPos.x - this.tailVector.x*this.unitLength, this.tailPos.y - this.tailVector.y*this.unitLength); 
+				}
+
+				this.eatBonusFood = function() {
+					this.length++; 
+					this.score += bonusFood.points; 
+					this.tailPos = new positionVector(this.tailPos.x - this.tailVector.x*this.unitLength, this.tailPos.y - this.tailVector.y*this.unitLength); 
+				}
+			}
+
+			function Food() { //food constructor
+				this.color = "#000"; 
+				this.pos = new positionVector(Math.random()*(width - 30) + 10, Math.random()*(height - 30) + 10); 
+
+				this.eatCheck = function() {
+					if (overlapCheck(this.pos.x - 5,this.pos.x + 15,this.pos.y - 5,this.pos.y + 15,snake.headPos.x,snake.headPos.y)) {
+						snake.eatFood(); 
+						console.log("Food eaten"); 
+						food = new Food(); 
+
+						if (!(snake.counter % 5)) {
+							bonusFood = new BonusFood(); 
+							timeBonusFood(); 
+						}
+					}
+				}
+			}
+
+			function BonusFood() { //bonus food constructor
+				this.color = "#002"; 
+				this.pos = new positionVector(Math.random()*(width - 80) + 40, Math.random()*(height - 80) + 40); 
+				this.points = 40; 
+
+				this.eatCheck = function() {
+					if (overlapCheck(this.pos.x - 20,this.pos.x + 20,this.pos.y - 20,this.pos.y + 20,snake.headPos.x,snake.headPos.y)) {
+						snake.eatBonusFood(); 
+						console.log("Bonus food eaten"); 
+						bonusFood = null; 
+					}
+				}
+			}
+
+			function positionVector(px, py) { //position vector constructor
+				this.x = px; 
+				this.y = py; 
+			}
+
+			function velocityVector(vx, vy) { //velocity vector constructor
+				this.x = vx; 
+				this.y = vy; 
+			}
+
+			function toKeyCode(obj) { //converts velocity vector to key code
+				x = obj.x; 
+				y = obj.y; 
+
+				if (x == -1 && y == 0) {return 37; } 
+				if (x == 0 && y == -1) {return 38; } 
+				if (x == 1 && y == 0) {return 39; } 
+				if (x == 0 && y == 1) {return 40; } 
+			}
+
+			function toVelocityVector(k) { //converts key code to velocity vector
+				var vv; 
+
+				switch(k) {
+					case 37: 
+						vv = new velocityVector(-1,0); 
+						break; 
+
+					case 38: 
+						vv = new velocityVector(0,-1); 
+						break; 
+
+					case 39: 
+						vv = new velocityVector(1,0); 
+						break; 
+
+					case 40: 
+						vv = new velocityVector(0,1); 
+						break; 
+				}
+
+				return vv; 
+			}
+
+			function newPositionVector(pv, vv) { //updates snake.headPos or snake.tailPos
+				var k = 10; 
+				return new positionVector(pv.x + k*vv.x, pv.y + k*vv.y); 
+			}
+
+			function collisionCheck() {
+				if (snake.headPos.x < 0 || snake.headPos.x > width || snake.headPos.y < 0 || snake.headPos.y > height) {
+					alert("You failed!"); 
+					restart(); 
+				}
+
+				var squares = getSquares(); 
+				for (var i = 1; i < squares.length; i++) {
+					var s = squares[i]; 
+					if (overlapCheck(s.x1, s.x2, s.y1, s.y2, snake.headPos.x, snake.headPos.y)) {
+						alert("You failed!"); 
+						restart(); 
+					}
+				}
+			}
+
+			function overlapCheck(x1, x2, y1, y2, px, py) {
+				var bool1 = px >= Math.min(x1, x2); 
+				var bool2 = px <= Math.max(x1, x2); 
+				var bool3 = py >= Math.min(y1, y2); 
+				var bool4 = py <= Math.max(y1, y2); 
+
+				if (bool1 && bool2 && bool3 && bool4) return true; 
+			}
+
+			function getSquares() {
+				var squares = [], l = snake.turns.length; 
+
+				if (l) {
+					squares.push({x1: snake.headPos.x, x2: snake.turnPos[l-1].x, y1: snake.headPos.y, y2: snake.turnPos[l-1].y}); 
+					squares.push({x1: snake.turnPos[0].x, x2: snake.tailPos.x, y1: snake.turnPos[0].y, y2: snake.tailPos.y}); 
+					for (var i = l - 1; i > 0; i--) {
+						squares.push({x1: snake.turnPos[i].x, x2: snake.turnPos[i-1].x, y1: snake.turnPos[i].y, y2: snake.turnPos[i-1].y}); 
+					}
+				}
+
+				else {
+					squares.push({x1: snake.headPos.x, x2: snake.tailPos.x, y1: snake.headPos.y, y2: snake.tailPos.y}); 
+				}
+
+				return squares; 
+			}
+
+			function timeBonusFood() {
+				var bonusFoodLoop = setInterval(function() {
+					if (!loop) {}
+					else if (bonusFood && bonusFood.points) {
+						bonusFood.points--; 
+						console.log(bonusFood.points); 
+					}
+					else {
+						clearInterval(bonusFoodLoop); 
+						bonusFood = null; 
+					}
+				}, 100); 
+			}
+
+			function restart() {
+				pause(); 
+
+				if (typeof(Storage) !== "undefined") localStorage.setItem("highScore", Math.max(snake.score, localStorage.getItem("highScore"))); 
+
+				snake = new Snake(); 
+				food = new Food(); 
+				bonusFood = null; 
+				play(); 
+			}
+
+			function pause() {
+				clearInterval(loop); 
+				loop = null; 
+			}
+
+			function play() {
+				loop = setInterval(function() { //game loop
+					update(); 
+					render(); 
+					collisionCheck(); 
+					food.eatCheck(); 
+					if (bonusFood) bonusFood.eatCheck(); 
+				}, 1000/(framesPerSec + 7.5*(gameSpeed - 1))); 
+			}
+
+
+			function copyArray(a1, a2) { //copies array a1 into array a2
+				a2 = []; 
+				for (var i in a1) {
+					a2[i] = a1[i]; 
+				}
+			}
+
+			function deleteFromArray(arr,index) {
+                for (var i = index; i < arr.length - 1; i++) {
+                    arr[i] = arr[i + 1]; 
+                }
+                
+                arr.pop(); 
+                return arr; 
+            }
+
+
+			window.addEventListener("keydown", function(e) { //event listener for key press
+				var E = e.keyCode; 
+				var F = Math.abs(E - toKeyCode(snake.headVector)); 
+				if ((E == 37 || E == 38 || E == 39 || E == 40) && F != 2 && F != 0 && loop) { //direction
+					snake.turns.push(E); 
+					snake.turnPos.push(new positionVector(snake.headPos.x, snake.headPos.y)); 
+					snake.headVector = toVelocityVector(E); 
+				}
+
+				if (E == 32) { // play/pause
+					if (loop) pause(); 
+					else play(); 
+				}
+				
+			}, false); 
+
+
+			play(); 
+
+		</script>
+	</body>
+</html>
